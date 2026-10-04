@@ -25,12 +25,14 @@ def seed():
     init_db()
     conn = get_conn()
     conn.execute("DELETE FROM products")
+    conn.execute("DELETE FROM orders")
+    conn.execute("DELETE FROM sqlite_sequence WHERE name='orders'")
     conn.executemany(
         "INSERT INTO products (name, aliases, category, unit, price, stock) VALUES (?,?,?,?,?,?)",
         PRODUCTS)
     conn.commit()
     conn.close()
-    print(f"{len(PRODUCTS)} demo products ban gaye.")
+    print(f"{len(PRODUCTS)} demo products ban gaye, purane orders saaf.")
 
 
 if __name__ == "__main__":
