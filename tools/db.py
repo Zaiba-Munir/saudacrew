@@ -20,7 +20,8 @@ def init_db():
         category TEXT NOT NULL,
         unit TEXT NOT NULL,
         price REAL NOT NULL,
-        stock REAL NOT NULL)""")
+        stock REAL NOT NULL,
+        emoji TEXT NOT NULL DEFAULT '')""")
     conn.execute("""CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_at TEXT NOT NULL,
@@ -105,3 +106,15 @@ def find_alternatives(category, max_price, exclude_id, limit=3):
         (category, max_price, exclude_id, limit)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def get_catalog_text():
+    """Assistant ko dukaan ki poori list dikhane ke liye (naam, price, stock)."""
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM products ORDER BY category, name").fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        stock = "in stock" if r["stock"] > 0 else "OUT OF STOCK"
+        out.append(f"- {r['name']} ({r['category']}): Rs {r['price']:g} per {r['unit']}, {stock}")
+    return "\n".join(out)

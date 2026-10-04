@@ -3,10 +3,11 @@ from agents.order_agent import parse_order
 from agents.stock_agent import check_order
 from agents.invoice_agent import make_invoice
 from agents.reply_agent import write_reply
+from agents.assistant_agent import chat_reply
 from tools.db import save_order
 
 
-def handle_message(message):
+def handle_message(message, history=None):
     """Manager: agents ko order mein chalata hai aur trace banata hai. Order abhi save NAHI hota."""
     trace = []
 
@@ -18,9 +19,17 @@ def handle_message(message):
         return out
 
     try:
-        parsed = step("Order Agent", "Message se items nikale",
+        parsed = step("Order Agent", "Message ko samjha",
                       lambda: parse_order(message),
-                      lambda o: f"{len(o['items'])} item(s) mile")
+                      lambda o: f"intent: {o['intent']}, {len(o['items'])} item(s) mile")
+
+        # Sirf baat-cheet: Assistant jawab de ga
+        if parsed["intent"] == "chat":
+            reply = step("Assistant Agent", "Customer se baat ki aur madad ki",
+                         lambda: chat_reply(message, history))
+            return {"parsed": parsed, "bill": {"lines": [], "total": 0}, "issues": [],
+                    "decision": "chat", "reply": reply, "trace": trace}
+
         stock = step("Stock Agent", "Stock check kiya aur faisla liya",
                      lambda: check_order(parsed),
                      lambda o: f"decision: {o['decision']}, masle: {len(o['issues'])}")

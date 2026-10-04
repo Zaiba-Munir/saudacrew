@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SaudaCrew</title>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--ink:#1c2333;--muted:#6b7280;--brand:#1f6f5c;--brand2:#e8f4f0;--line:#e5e7eb;--warn:#92400e;--warnbg:#fef3c7}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--brand);color:#fff;padding:14px 20px}
+header h1{margin:0;font-size:22px}
+header p{margin:2px 0 0;font-size:13px;opacity:.9}
+.wrap{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;padding:16px;max-width:1200px;margin:0 auto}
+@media(max-width:800px){.wrap{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+.card h2{margin:0 0 10px;font-size:16px}
+#chat{height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:6px;background:#fafbfd;border-radius:8px;border:1px solid var(--line)}
+.msg{max-width:85%;padding:9px 12px;border-radius:12px;white-space:pre-wrap;font-size:14px;line-height:1.45}
+.me{align-self:flex-end;background:var(--brand);color:#fff}
+.bot{align-self:flex-start;background:#fff;border:1px solid var(--line)}
+.wait{color:var(--muted);font-style:italic}
+.row{display:flex;gap:8px;margin-top:10px}
+input[type=text]{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px}
+button{background:var(--brand);color:#fff;border:0;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.ghost{background:var(--brand2);color:var(--brand)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{background:var(--brand2);color:var(--brand);border:1px solid #cfe6de;border-radius:999px;padding:5px 10px;font-size:12px;cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
+td.n,th.n{text-align:right}
+.total{font-weight:700;font-size:15px}
+.issue{background:var(--warnbg);color:var(--warn);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:13px}
+.trace{border-left:3px solid var(--brand);padding:4px 0 4px 10px;margin:8px 0;font-size:13px}
+.trace b{color:var(--brand)}
+.muted{color:var(--muted);font-size:13px}
+.note{font-size:11px;color:var(--muted);text-align:center;padding:8px}
+a.btnlink{display:inline-block;background:var(--brand2);color:var(--brand);padding:8px 12px;border-radius:8px;text-decoration:none;font-size:13px;margin-top:8px}
+#report{white-space:pre-wrap;font-size:13px;line-height:1.5}
+</style>
+</head>
+<body>
+<header>
+  <h1>SaudaCrew</h1>
+  <p>AI order and business automation for small sellers (Demo General Store)</p>
+</header>
+
+<div class="wrap">
+  <div>
+    <div class="card">
+      <h2>Customer Chat</h2>
+      <div id="chat">
+        <div class="msg bot">Assalam o Alaikum! Write your order in Roman Urdu or English.</div>
+      </div>
+      <div class="row">
+        <input type="text" id="input" placeholder="e.g. 2 kilo chawal aur 1 dozen anday bhej do">
+        <button id="send">Send</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div id="billArea"></div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2>Agent Trace</h2>
+      <div id="trace"><p class="muted">After you send an order, you will see what each agent did here.</p></div>
+    </div>
+    <div class="card">
+      <h2>Owner's Daily Report</h2>
+      <button class="ghost" id="reportBtn">Show report</button>
+      <div id="report" style="margin-top:10px"></div>
+    </div>
+  </div>
+</div>
+<div class="note">Demo project: all prices and stock are demo data.</div>
+
+<script>
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const traceBox = document.getElementById('trace');
+const billArea = document.getElementById('billArea');
+
+const EXAMPLES = [
+  "2 kilo chawal aur 1 dozen anday bhej do",
+  "10 dozen anday",
+  "1 kilo desi ghee chahiye, budget 800 hai",
+  "aata aur daal",
+  "send me 3 kg sugar and 2 litre milk"
+];
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+const fmt = n => Number(n).toLocaleString('en-US', {maximumFractionDigits: 2});
+
+function addMsg(text, cls) {
+  const d = el('div', 'msg ' + cls, text);
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+  return d;
+}
+
+function showTrace(trace) {
+  traceBox.innerHTML = '';
+  trace.forEach((t, i) => {
+    setTimeout(() => {
+      const d = el('div', 'trace');
+      d.appendChild(el('b', '', t.agent));
+      d.appendChild(document.createTextNode(': ' + t.action));
+      d.appendChild(el('div', 'muted', (t.detail ? t.detail + ' ' : '') + '(' + t.seconds + ' sec)'));
+      traceBox.appendChild(d);
+    }, i * 350);
+  });
+}
+
+function showBill(d) {
+  billArea.innerHTML = '';
+  const card = el('div', 'card');
+  card.appendChild(el('h2', '', 'Bill'));
+  const tbl = el('table');
+  const head = el('tr');
+  [['Item', ''], ['Qty', 'n'], ['Price', 'n'], ['Total', 'n']].forEach(([h, c]) => head.appendChild(el('th', c, h)));
+  tbl.appendChild(head);
+  d.bill.lines.forEach(l => {
+    const r = el('tr');
+    r.appendChild(el('td', '', l.name));
+    r.appendChild(el('td', 'n', fmt(l.qty) + ' ' + l.unit));
+    r.appendChild(el('td', 'n', 'Rs ' + fmt(l.price)));
+    r.appendChild(el('td', 'n', 'Rs ' + fmt(l.line_total)));
+    tbl.appendChild(r);
+  });
+  const tr = el('tr', 'total');
+  tr.appendChild(el('td', '', 'Total'));
+  tr.appendChild(el('td'));
+  tr.appendChild(el('td'));
+  tr.appendChild(el('td', 'n', 'Rs ' + fmt(d.bill.total)));
+  tbl.appendChild(tr);
+  card.appendChild(tbl);
+
+  d.issues.forEach(iss => {
+    let text = iss.message;
+    if (iss.alternatives && iss.alternatives.length) {
+      text += '. Alternatives: ' + iss.alternatives.map(a => a.name + ' (Rs ' + fmt(a.price) + '/' + a.unit + ')').join(', ');
+    }
+    card.appendChild(el('div', 'issue', text));
+  });
+
+  if (!d.token) {
+    card.appendChild(el('div', 'muted', 'This order is over the budget, so it cannot be confirmed. Pick from the alternatives and send a new order.'));
+  }
+
+  if (d.token) {
+    const btn = el('button', '', 'Confirm Order');
+    btn.style.marginTop = '12px';
+    btn.onclick = async () => {
+      btn.disabled = true;
+      const r = await fetch('/api/confirm', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({token: d.token})});
+      const res = await r.json();
+      if (!r.ok) { addMsg(res.error, 'bot'); return; }
+      btn.textContent = 'Confirmed';
+      addMsg('Thank you! Your order #' + res.order_id + ' is confirmed.', 'bot');
+      const a = el('a', 'btnlink', 'View / print receipt');
+      a.href = res.receipt_url; a.target = '_blank';
+      card.appendChild(el('div'));
+      card.appendChild(a);
+    };
+    card.appendChild(btn);
+  }
+  billArea.appendChild(card);
+}
+
+async function send(text) {
+  text = (text || input.value).trim();
+  if (!text) return;
+  input.value = '';
+  addMsg(text, 'me');
+  sendBtn.disabled = true;
+  const wait = addMsg('Agents are working...', 'bot wait');
+  traceBox.innerHTML = '<p class="muted">Agents are working...</p>';
+  billArea.innerHTML = '';
+  try {
+    const r = await fetch('/api/message', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({message: text})});
+    const d = await r.json();
+    wait.remove();
+    if (!r.ok) { addMsg(d.error || 'Something went wrong', 'bot'); return; }
+    addMsg(d.reply, 'bot');
+    if (d.bill.lines.length) showBill(d);
+    showTrace(d.trace);
+  } catch (e) {
+    wait.remove();
+    addMsg('Could not reach the server. Please try again.', 'bot');
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+sendBtn.onclick = () => send();
+input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+
+const chips = document.getElementById('chips');
+EXAMPLES.forEach(t => {
+  const c = el('span', 'chip', t);
+  c.onclick = () => send(t);
+  chips.appendChild(c);
+});
+
+document.getElementById('reportBtn').onclick = async () => {
+  const box = document.getElementById('report');
+  box.textContent = 'Preparing report...';
+  try {
+    const r = await fetch('/api/report');
+    const d = await r.json();
+    box.textContent = d.text;
+  } catch (e) {
+    box.textContent = 'Could not prepare the report. Please try again.';
+  }
+};
+</script>
+</body>
+</html>
