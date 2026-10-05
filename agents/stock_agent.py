@@ -13,43 +13,43 @@ def _norm(u):
 
 
 def check_order(parsed):
-    """Order Agent ke JSON se faisla: kya bill banega, kya masle hain."""
+    """Decide from the Order Agent's JSON: what can be billed and what the problems are."""
     issues, notes = [], []
     merged = {}  # product_id -> {"product": p, "qty": total}
 
-    # Step 1: har item ko database mein dhoondo, duplicate jodo
+    # Step 1: find each item in the database and merge duplicates
     for it in parsed.get("items", []):
         name, qty = it["name"], it.get("qty")
         p = find_product(name)
         if p is None:
             issues.append({"type": "not_found", "item": name,
-                           "message": f"{name} hamari shop mein nahi hai"})
+                           "message": f"{name} is not available in our shop"})
             continue
         if qty is None or qty <= 0:
             issues.append({"type": "missing_qty", "item": p["name"],
-                           "message": f"{p['name']} kitni chahiye?"})
+                           "message": f"How much {p['name']} do you need?"})
             continue
         u = _norm(it.get("unit"))
         if u and u != p["unit"]:
-            notes.append(f"{p['name']} ki unit '{p['unit']}' hai (aap ne '{it.get('unit')}' likha)")
+            notes.append(f"{p['name']} is sold per {p['unit']} (you wrote '{it.get('unit')}')")
         m = merged.setdefault(p["id"], {"product": p, "qty": 0})
         m["qty"] += qty
 
-    # Step 2: stock check aur faisla
+    # Step 2: stock check and decision
     lines = []
     for pid, m in merged.items():
         p, qty, stock = m["product"], m["qty"], m["product"]["stock"]
         if stock <= 0:
             alts = find_alternatives(p["category"], p["price"], p["id"])
             issues.append({"type": "out", "item": p["name"], "alternatives": alts,
-                           "message": f"{p['name']} abhi khatam hai"})
+                           "message": f"{p['name']} is out of stock"})
         elif stock < qty:
             lines.append({"product_id": pid, "qty": stock, "price": p["price"],
                           "category": p["category"], "name": p["name"]})
             alts = find_alternatives(p["category"], p["price"], p["id"])
             issues.append({"type": "short", "item": p["name"], "requested": qty,
                            "available": stock, "unit": p["unit"], "alternatives": alts,
-                           "message": f"{p['name']} sirf {stock:g} {p['unit']} maujood hai (aap ne {qty:g} maangi)"})
+                           "message": f"Only {stock:g} {p['unit']} of {p['name']} available (you asked for {qty:g})"})
         else:
             lines.append({"product_id": pid, "qty": qty, "price": p["price"],
                           "category": p["category"], "name": p["name"]})
@@ -66,7 +66,7 @@ def check_order(parsed):
             alts = find_alternatives(big["category"], max_unit, big["product_id"]) if max_unit > 0 else []
             issues.append({"type": "over_budget", "item": big["name"], "budget": budget,
                            "total": total, "alternatives": alts,
-                           "message": f"Total {total:g} hai, aap ka budget {budget:g} hai"})
+                           "message": f"Total is Rs {total:g}, your budget is Rs {budget:g}"})
 
     clean_lines = [{"product_id": l["product_id"], "qty": l["qty"]} for l in lines]
     return {"lines": clean_lines, "issues": issues, "notes": notes,

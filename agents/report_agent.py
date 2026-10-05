@@ -7,7 +7,7 @@ LOW_STOCK_LIMIT = 10
 
 
 def collect_stats():
-    """Saare numbers Python nikalta hai, LLM nahi."""
+    """All numbers are calculated by Python, not by the LLM."""
     orders = get_orders_today()
     total_sales = sum(o["total"] for o in orders)
     sold = {}
@@ -30,27 +30,27 @@ def collect_stats():
 
 def daily_report():
     stats = collect_stats()
-    facts = [f"Aaj ke orders: {stats['orders_count']}",
-             f"Aaj ki total sale: Rs {stats['total_sales']:g}"]
+    facts = [f"Orders today: {stats['orders_count']}",
+             f"Total sales today: Rs {stats['total_sales']:g}"]
     b = stats["best_seller"]
-    facts.append(f"Sab se zyada bika: {b['name']} ({b['qty']:g} {b['unit']})" if b else "Sab se zyada bika: abhi koi sale nahi")
+    facts.append(f"Best seller: {b['name']} ({b['qty']:g} {b['unit']})" if b else "Best seller: no sales yet")
     if stats["low_stock"]:
-        facts.append("Kam stock wali cheezein: " + ", ".join(
-            f"{x['name']} ({x['stock']:g} {x['unit']} bacha)" for x in stats["low_stock"]))
+        facts.append("Low stock items: " + ", ".join(
+            f"{x['name']} ({x['stock']:g} {x['unit']} left)" for x in stats["low_stock"]))
     else:
-        facts.append("Kam stock wali cheezein: koi nahi")
+        facts.append("Low stock items: none")
 
     rules = """
-Tum dukaan ke owner ke liye Report Agent ho. Neeche diye FACTS se Roman Urdu mein chhoti si daily report likho.
+You are the Report Agent for a shop owner. Write a short daily report in simple English using only the FACTS below.
 Rules:
-- Sirf FACTS ke numbers use karo, koi number apni taraf se mat banao.
-- Aakhir mein 1-2 lines ka restock mashwara do (kam stock wali cheezein dobara mangwane ka).
-- Markdown ya ** mat use karo. 5 se 8 lines. Price ke saath "Rs".
+- Use only the numbers in the FACTS. Never invent a number.
+- End with 1 or 2 lines of restocking advice for the low stock items.
+- No markdown and no ** symbols. 5 to 8 short lines. Write "Rs" before prices.
 """
-    agent = Agent(role="Report Agent", goal="Owner ke liye saaf daily report banana",
-                  backstory="Tum ek hoshiyar munshi ho jo dukaan ka hisaab rakhta hai.",
+    agent = Agent(role="Report Agent", goal="Write a clear daily report for the shop owner",
+                  backstory="You are a smart shop accountant who keeps the shop's records.",
                   llm=get_llm(), verbose=False)
     task = Task(description=rules + "\n\nFACTS:\n" + "\n".join(facts),
-                expected_output="Owner ke liye Roman Urdu daily report", agent=agent)
+                expected_output="A short daily report in English for the shop owner", agent=agent)
     text = str(Crew(agents=[agent], tasks=[task], verbose=False).kickoff()).strip()
     return {"stats": stats, "text": text}
